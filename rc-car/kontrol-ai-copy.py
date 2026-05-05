@@ -5,6 +5,8 @@ import time
 from gtts import gTTS
 import os
 import subprocess
+import dotenv
+dotenv.load_dotenv()
 
 broker = "broker.hivemq.com"
 topik = "muhayara/rc/whatever-you-want"
@@ -12,8 +14,7 @@ topik = "muhayara/rc/whatever-you-want"
 klien = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 klien.connect(broker, 1883, 60)
 
-# Masukkan API Key Kamu di bawah ini
-ai_klien = genai.Client(api_key="")
+ai_klien = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 def bicara(teks):
     print("AI: " + teks)

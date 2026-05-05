@@ -4,6 +4,8 @@ from google import genai
 import time
 from gtts import gTTS
 import os
+import dotenv
+dotenv.load_dotenv()
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame
 import io
@@ -14,7 +16,7 @@ topik = "muhayara/rc/whatever-you-want"
 klien = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 klien.connect(broker, 1883, 60)
 
-ai_klien = genai.Client(api_key="???")
+ai_klien = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 pygame.mixer.init()
 
