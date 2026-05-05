@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<title>RC CAR</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<style>
+  body { background: #111; color: white; text-align: center; font-family: sans-serif; overflow: hidden; }
+  h1 { font-size: 24px; margin-top: 20px; color: #00e5ff; }
+  .status { font-size: 12px; margin: 6px 0 0; color: #555; }
+  .status.on { color: #00c864; }
+  .status.off { color: #ff4444; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; max-width: 350px; margin: 40px auto; }
+  button { padding: 30px 0; font-size: 20px; font-weight: bold; border-radius: 12px; background: #333; color: white; border: 2px solid #555; touch-action: none; user-select: none; -webkit-user-select: none; }
+  button:active { background: #00e5ff; color: black; border-color: #00e5ff; }
+  .empty { visibility: hidden; }
+</style>
+</head>
+<body>
+
+<h1>MOBIL RC</h1>
+<p class="status" id="statusEl">Menghubungkan...</p>
+
+<div class="grid">
+  <div class="empty"></div>
+  <button id="btnF">MAJU</button>
+  <div class="empty"></div>
+
+  <button id="btnL">KIRI</button>
+  <button id="btnS">STOP</button>
+  <button id="btnR">KANAN</button>
+
+  <div class="empty"></div>
+  <button id="btnB">MUNDUR</button>
+  <div class="empty"></div>
+</div>
+
+<script>
+  // =============================================
+  // KONFIGURASI — samakan topic dengan mobil_mqtt.ino
+  // =============================================
+  const MQTT_TOPIC = 'muhayara/rc/whatever-you-want'
+  // =============================================
+
+  const statusEl = document.getElementById('statusEl')
+  const klien = mqtt.connect('wss://broker.hivemq.com:8884/mqtt')
+
+  klien.on('connect', () => {
+    statusEl.textContent = '● Terhubung ke broker MQTT'
+    statusEl.className = 'status on'
+  })
+  klien.on('offline', () => {
+    statusEl.textContent = '● Terputus'
+    statusEl.className = 'status off'
+  })
+  klien.on('error', (e) => {
+    statusEl.textContent = '● Error: ' + e.message
+    statusEl.className = 'status off'
+  })
+
+  function kirim(pesan) {
+    if (klien.connected) klien.publish(MQTT_TOPIC, pesan)
+  }
+
+  function aturTombol(id, perintah) {
+    const btn = document.getElementById(id)
+    btn.addEventListener('mousedown',  () => kirim(perintah))
+    btn.addEventListener('mouseup',    () => kirim('S'))
+    btn.addEventListener('mouseleave', () => kirim('S'))
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); kirim(perintah) })
+    btn.addEventListener('touchend',   (e) => { e.preventDefault(); kirim('S') })
+  }
+
+  aturTombol('btnF', 'F')
+  aturTombol('btnB', 'B')
+  aturTombol('btnL', 'L')
+  aturTombol('btnR', 'R')
+</script>
+</body>
+</html>
