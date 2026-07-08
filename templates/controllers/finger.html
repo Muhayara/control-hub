@@ -1,0 +1,285 @@
+{% extends 'base.html' %}
+{% block title %}Kontrol Jari — RC Car{% endblock %}
+
+{% block head %}
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<!-- MediaPipe Hands (browser) -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js" crossorigin="anonymous"></script>
+{% endblock %}
+
+{% block body %}
+<style>
+  :root { --accent: {{ ctrl.color }}; }
+
+  /* Zona label overlay pada canvas */
+  .zone-labels {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+  }
+  .zone-lbl {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    opacity: 0;
+    transition: opacity 0.2s;
+    color: white;
+    text-shadow: 0 0 10px rgba(0,0,0,0.8);
+  }
+  .zone-lbl.active {
+    opacity: 1;
+    color: var(--accent);
+    text-shadow: 0 0 16px var(--accent);
+  }
+  /* Posisi zona: baris 1 col 2 = MAJU, dst */
+  .zF { grid-column:2; grid-row:1; }
+  .zB { grid-column:2; grid-row:3; }
+  .zL { grid-column:1; grid-row:2; }
+  .zR { grid-column:3; grid-row:2; }
+  .zS { grid-column:2; grid-row:2; }
+</style>
+
+<header class="page-header">
+  <button class="btn-back" onclick="goBack()">← Kembali</button>
+  <div class="page-title">{{ ctrl.icon }} {{ ctrl.name }}</div>
+  <div class="mqtt-badge">
+    <div class="mqtt-dot" id="dot"></div>
+    <span id="mqttStatus">Menghubungkan...</span>
+  </div>
+</header>
+
+<div class="page-content">
+  <div class="finger-wrap">
+
+    <!-- Tampilan perintah aktif -->
+    <div class="finger-cmd" id="fingerCmd">— —</div>
+
+    <!-- Frame kamera -->
+    <div class="cam-frame">
+      <video id="videoEl" playsinline></video>
+      <canvas id="camCanvas"></canvas>
+
+      <!-- Label zona di atas canvas -->
+      <div class="zone-labels">
+        <div class="zone-lbl zF" id="zlF">↑ MAJU</div>
+        <div class="zone-lbl zL" id="zlL">← KIRI</div>
+        <div class="zone-lbl zS" id="zlS">■</div>
+        <div class="zone-lbl zR" id="zlR">KANAN →</div>
+        <div class="zone-lbl zB" id="zlB">↓ MUNDUR</div>
+      </div>
+
+      <!-- Overlay sebelum kamera aktif -->
+      <div class="cam-overlay" id="camOverlay">
+        <div>✋ Kontrol Jari</div>
+        <div style="font-size:0.78rem; color: var(--text-muted); max-width:280px; text-align:center; line-height:1.6">
+          Arahkan jari telunjuk ke zona layar.<br>
+          Pastikan kamera tersedia dan izin diberikan.
+        </div>
+        <button class="cam-start-btn" id="startCamBtn">Mulai Kamera</button>
+      </div>
+    </div>
+
+    <!-- Legenda zona -->
+    <div class="zone-legend">
+      <span></span>
+      <span id="lgF">↑ MAJU</span>
+      <span></span>
+      <span id="lgL">← KIRI</span>
+      <span>■ STOP</span>
+      <span id="lgR">KANAN →</span>
+      <span></span>
+      <span id="lgB">↓ MUNDUR</span>
+      <span></span>
+    </div>
+
+    <div class="warn-box" id="warnBox" style="display:none"></div>
+
+  </div>
+</div>
+
+<script>
+// ── Konfigurasi ─────────────────────────────────────────────────────────────
+const BROKER = "{{ mqtt_broker }}";
+const TOPIC  = "{{ mqtt_topic }}";
+
+// ── MQTT ────────────────────────────────────────────────────────────────────
+const dot    = document.getElementById('dot');
+const mqStat = document.getElementById('mqttStatus');
+const client = mqtt.connect(BROKER);
+
+client.on('connect', () => { dot.className = 'mqtt-dot connected'; mqStat.textContent = 'Terhubung'; });
+client.on('offline', () => { dot.className = 'mqtt-dot error';     mqStat.textContent = 'Terputus'; });
+client.on('error',   () => { dot.className = 'mqtt-dot error';     mqStat.textContent = 'Error'; });
+
+function pub(msg) { if (client.connected) client.publish(TOPIC, msg); }
+
+// ── DOM refs ─────────────────────────────────────────────────────────────────
+const videoEl     = document.getElementById('videoEl');
+const canvas      = document.getElementById('camCanvas');
+const ctx         = canvas.getContext('2d');
+const camOverlay  = document.getElementById('camOverlay');
+const fingerCmd   = document.getElementById('fingerCmd');
+const warnBox     = document.getElementById('warnBox');
+const startCamBtn = document.getElementById('startCamBtn');
+
+// Label zona di canvas
+const zoneLbls = { F: 'zlF', B: 'zlB', L: 'zlL', R: 'zlR', S: 'zlS' };
+const legendEls = {
+  F: document.getElementById('lgF'), B: document.getElementById('lgB'),
+  L: document.getElementById('lgL'), R: document.getElementById('lgR'),
+};
+
+const DIR_LABEL = { F: '↑ MAJU', B: '↓ MUNDUR', L: '← KIRI', R: '→ KANAN', S: '— —' };
+let lastCmd = 'S';
+let handsReady = false;
+let cameraObj  = null;
+
+// ── Update UI zona aktif ──────────────────────────────────────────────────────
+function updateCmdUI(cmd) {
+  fingerCmd.textContent = DIR_LABEL[cmd] || '— —';
+
+  // Hapus semua active
+  Object.values(zoneLbls).forEach(id => document.getElementById(id)?.classList.remove('active'));
+  Object.values(legendEls).forEach(el => el?.classList.remove('z-active'));
+
+  // Set active sekarang
+  const zlId = zoneLbls[cmd];
+  if (zlId) document.getElementById(zlId)?.classList.add('active');
+  if (legendEls[cmd]) legendEls[cmd].classList.add('z-active');
+}
+
+// ── MediaPipe Hands result handler ───────────────────────────────────────────
+function onResults(results) {
+  // Sesuaikan ukuran canvas
+  canvas.width  = results.image.width;
+  canvas.height = results.image.height;
+
+  ctx.save();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // Mirror flip (sesuai kontrol-jari.py: cv2.flip)
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+  ctx.restore();
+
+  let cmd = 'S';
+  const W = canvas.width;
+  const H = canvas.height;
+
+  if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+    const landmarks = results.multiHandLandmarks[0];
+
+    // Gambar tangan (perlu mirror ulang koordinat untuk gambar)
+    ctx.save();
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: 'rgba(0,212,255,0.7)', lineWidth: 2 });
+    drawLandmarks(ctx, landmarks, { color: '#ff6b35', lineWidth: 1, radius: 3 });
+    ctx.restore();
+
+    // Landmark[8] = ujung jari telunjuk (sesuai kontrol-jari.py)
+    const tip = landmarks[8];
+    // Mirror X (karena kita flip video)
+    const x = (1 - tip.x) * W;
+    const y = tip.y * H;
+
+    // Logika zona 3×3 (sesuai kontrol-jari.py)
+    if      (y < H / 3)         cmd = 'F';
+    else if (y > 2 * H / 3)     cmd = 'B';
+    else if (x < W / 3)         cmd = 'L';
+    else if (x > 2 * W / 3)     cmd = 'R';
+    else                         cmd = 'S';
+
+    // Gambar indikator ujung jari
+    ctx.beginPath();
+    ctx.arc(x, y, 14, 0, 2 * Math.PI);
+    ctx.fillStyle = 'rgba(0,212,255,0.55)';
+    ctx.fill();
+    ctx.strokeStyle = '#00d4ff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // Gambar garis pembagi zona (sesuai kontrol-jari.py)
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5, 5]);
+  // Vertikal
+  [W/3, 2*W/3].forEach(x => { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); });
+  // Horizontal
+  [H/3, 2*H/3].forEach(y => { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); });
+  ctx.setLineDash([]);
+
+  // Kirim perintah hanya saat ada perubahan (sesuai kontrol-jari.py: perintah_terakhir)
+  if (cmd !== lastCmd) {
+    pub(cmd);
+    lastCmd = cmd;
+    updateCmdUI(cmd);
+  }
+}
+
+// ── Inisialisasi MediaPipe Hands ──────────────────────────────────────────────
+function initHands() {
+  const hands = new Hands({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`
+  });
+
+  hands.setOptions({
+    maxNumHands:          1,
+    modelComplexity:      1,
+    minDetectionConfidence: 0.7,  // sesuai kontrol-jari.py
+    minTrackingConfidence:  0.5,
+  });
+
+  hands.onResults(onResults);
+  return hands;
+}
+
+// ── Mulai kamera ──────────────────────────────────────────────────────────────
+startCamBtn.addEventListener('click', async () => {
+  startCamBtn.disabled = true;
+  startCamBtn.textContent = 'Memuat MediaPipe...';
+
+  try {
+    const hands = initHands();
+    handsReady = true;
+
+    cameraObj = new Camera(videoEl, {
+      onFrame: async () => {
+        if (handsReady) await hands.send({ image: videoEl });
+      },
+      width: 640, height: 480,
+    });
+
+    await cameraObj.start();
+    camOverlay.classList.add('hidden');
+
+  } catch (err) {
+    startCamBtn.disabled = false;
+    startCamBtn.textContent = 'Coba Lagi';
+    warnBox.style.display = 'block';
+    warnBox.textContent = '⚠️ Gagal membuka kamera: ' + err.message +
+      '. Pastikan izin kamera diberikan dan tidak dipakai aplikasi lain.';
+  }
+});
+
+// ── Keamanan ──────────────────────────────────────────────────────────────────
+document.addEventListener('visibilitychange', () => { if (document.hidden) pub('S'); });
+
+function goBack() {
+  handsReady = false;
+  if (cameraObj) { try { cameraObj.stop(); } catch (_) {} }
+  pub('S');
+  setTimeout(() => history.back(), 100);
+}
+</script>
+{% endblock %}

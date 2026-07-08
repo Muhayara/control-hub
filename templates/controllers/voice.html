@@ -1,0 +1,241 @@
+{% extends 'base.html' %}
+{% block title %}Kontrol Suara — RC Car{% endblock %}
+
+{% block head %}
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+{% endblock %}
+
+{% block body %}
+<style>
+  :root { --accent: {{ ctrl.color }}; }
+</style>
+
+<!-- ── Header ────────────────────────────────────────────────────────────── -->
+<header class="page-header">
+  <button class="btn-back" onclick="goBack()">← Kembali</button>
+  <div class="page-title">{{ ctrl.icon }} {{ ctrl.name }}</div>
+  <div class="mqtt-badge">
+    <div class="mqtt-dot" id="dot"></div>
+    <span id="mqttStatus">Menghubungkan...</span>
+  </div>
+</header>
+
+<!-- ── Konten ─────────────────────────────────────────────────────────────── -->
+<div class="page-content">
+  <div class="voice-wrap">
+
+    <!-- Tampilan perintah aktif -->
+    <div class="cmd-display" id="cmdDisplay">— —</div>
+
+    <!-- Tombol mikrofon -->
+    <div class="mic-ring">
+      <button class="mic-btn" id="micBtn" title="Klik untuk mulai/berhenti mendengarkan">🎤</button>
+    </div>
+
+    <!-- Status teks -->
+    <div class="voice-hint" id="voiceHint">Klik mikrofon untuk mulai mendengarkan</div>
+
+    <!-- Contoh perintah -->
+    <div class="voice-hint" style="color: var(--text-muted); font-size: 0.75rem;">
+      Contoh: "maju 2" · "mundur 3" · "kiri" · "kanan 1"
+    </div>
+
+    <!-- Peringatan jika browser tidak support -->
+    <div class="warn-box" id="warnBox" style="display:none">
+      ⚠️ Browser ini tidak mendukung Web Speech API.<br>Gunakan Google Chrome atau Microsoft Edge.
+    </div>
+
+    <!-- Log perintah -->
+    <div class="voice-log" style="width:100%">
+      <div class="log-header">LOG PERINTAH</div>
+      <div class="log-body" id="logBody">
+        <div class="log-row">
+          <span class="log-time">--:--</span>
+          <span class="log-msg">Menunggu perintah suara...</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Konfigurasi ─────────────────────────────────────────────────────────────
+const BROKER  = "{{ mqtt_broker }}";
+const TOPIC   = "{{ mqtt_topic }}";
+const DEFAULT_DURATION = 1.0; // detik — sesuai kontrol.py
+
+// ── MQTT ────────────────────────────────────────────────────────────────────
+const dot    = document.getElementById('dot');
+const mqStat = document.getElementById('mqttStatus');
+const client = mqtt.connect(BROKER);
+
+client.on('connect', () => { dot.className = 'mqtt-dot connected'; mqStat.textContent = 'Terhubung'; });
+client.on('offline', () => { dot.className = 'mqtt-dot error';     mqStat.textContent = 'Terputus'; });
+client.on('error',   () => { dot.className = 'mqtt-dot error';     mqStat.textContent = 'Error'; });
+
+function pub(msg) { if (client.connected) client.publish(TOPIC, msg); }
+
+// ── Speech Recognition ───────────────────────────────────────────────────────
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+const micBtn     = document.getElementById('micBtn');
+const voiceHint  = document.getElementById('voiceHint');
+const cmdDisplay = document.getElementById('cmdDisplay');
+const logBody    = document.getElementById('logBody');
+
+if (!SpeechRecognition) {
+  document.getElementById('warnBox').style.display = 'block';
+  micBtn.disabled = true;
+}
+
+let isListening  = false;
+let isExecuting  = false;
+let recognition  = null;
+
+// ── Parser teks → arah & durasi (sesuai kontrol.py) ─────────────────────────
+function parseVoice(text) {
+  const t = text.toLowerCase();
+  let dir = null;
+  if (t.includes('maju'))   dir = 'F';
+  else if (t.includes('mundur')) dir = 'B';
+  else if (t.includes('kiri'))   dir = 'L';
+  else if (t.includes('kanan'))  dir = 'R';
+
+  if (!dir) return null;
+
+  const nums = t.match(/\d+/);
+  const duration = nums ? parseFloat(nums[0]) : DEFAULT_DURATION;
+  return { dir, duration };
+}
+
+const DIR_LABEL = { F: '↑ MAJU', B: '↓ MUNDUR', L: '← KIRI', R: '→ KANAN' };
+
+// ── Eksekusi perintah ────────────────────────────────────────────────────────
+async function executeCommand(dir, duration) {
+  isExecuting = true;
+  if (recognition) recognition.abort();
+
+  const label = DIR_LABEL[dir];
+  cmdDisplay.textContent = label;
+  voiceHint.textContent  = `⚡ ${label} selama ${duration} detik...`;
+  addLog(`⚡ ${label} (${duration}s)`, 'cmd');
+
+  pub(dir);
+  await sleep(duration * 1000);
+  pub('S');
+
+  cmdDisplay.textContent = '■ BERHENTI';
+  addLog('■ Berhenti', 'cmd');
+  await sleep(400);
+  cmdDisplay.textContent = '— —';
+
+  isExecuting = false;
+  voiceHint.textContent = 'Mendengarkan...';
+  if (isListening) startListen();
+}
+
+// ── Setup & lifecycle recognition ────────────────────────────────────────────
+function createRecognition() {
+  const rec = new SpeechRecognition();
+  rec.lang = 'id-ID';
+  rec.continuous = false;
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+
+  rec.onstart = () => {
+    voiceHint.textContent = '🎙️ Mendengarkan...';
+    micBtn.classList.add('active');
+  };
+
+  rec.onresult = (e) => {
+    const text = e.results[0][0].transcript;
+    addLog('👂 "' + text + '"');
+
+    const parsed = parseVoice(text);
+    if (parsed) {
+      executeCommand(parsed.dir, parsed.duration);
+    } else {
+      addLog('Arah tidak dikenali — coba lagi', 'error');
+      voiceHint.textContent = 'Arah tidak dikenali, coba lagi...';
+    }
+  };
+
+  rec.onerror = (e) => {
+    if (e.error === 'no-speech') {
+      // Lanjut loop — normal
+    } else if (e.error === 'not-allowed') {
+      addLog('Akses mikrofon ditolak', 'error');
+      voiceHint.textContent = '⚠️ Akses mikrofon ditolak — izinkan di browser';
+      stopListen();
+      return;
+    } else {
+      addLog('Error: ' + e.error, 'error');
+    }
+  };
+
+  rec.onend = () => {
+    micBtn.classList.remove('active');
+    if (isListening && !isExecuting) {
+      setTimeout(() => { if (isListening && !isExecuting) startListen(); }, 150);
+    }
+  };
+
+  return rec;
+}
+
+function startListen() {
+  recognition = createRecognition();
+  try { recognition.start(); } catch (_) { /* Abaikan jika sudah berjalan */ }
+}
+
+function stopListen() {
+  isListening = false;
+  micBtn.textContent = '🎤';
+  micBtn.classList.remove('active');
+  voiceHint.textContent = 'Klik mikrofon untuk mulai mendengarkan';
+  if (recognition) { try { recognition.abort(); } catch (_) {} }
+}
+
+// ── Toggle tombol mic ────────────────────────────────────────────────────────
+micBtn.addEventListener('click', () => {
+  if (!SpeechRecognition) return;
+  if (isListening) {
+    stopListen();
+  } else {
+    isListening = true;
+    micBtn.textContent = '🔴';
+    startListen();
+  }
+});
+
+// ── Logging ──────────────────────────────────────────────────────────────────
+function addLog(text, type = '') {
+  const now  = new Date();
+  const time = now.toTimeString().slice(0, 5);
+  const row  = document.createElement('div');
+  row.className = 'log-row';
+  row.innerHTML = `<span class="log-time">${time}</span><span class="log-msg ${type}">${text}</span>`;
+  // Hapus placeholder awal
+  if (logBody.children.length === 1) {
+    const first = logBody.firstElementChild;
+    if (first.querySelector('.log-time')?.textContent === '--:--') first.remove();
+  }
+  logBody.appendChild(row);
+  logBody.scrollTop = logBody.scrollHeight;
+  if (logBody.children.length > 40) logBody.removeChild(logBody.firstChild);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Keamanan: kirim STOP jika halaman tidak aktif ────────────────────────────
+document.addEventListener('visibilitychange', () => { if (document.hidden) pub('S'); });
+
+// ── Kembali: hentikan dulu sebelum pindah halaman ────────────────────────────
+function goBack() {
+  stopListen();
+  pub('S');
+  setTimeout(() => history.back(), 100);
+}
+</script>
+{% endblock %}

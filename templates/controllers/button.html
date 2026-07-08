@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% block title %}Kontrol Tombol — RC Car{% endblock %}
+
+{% block head %}
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+{% endblock %}
+
+{% block body %}
+<style>
+  :root { --accent: {{ ctrl.color }}; }
+</style>
+
+<!-- ── Header ────────────────────────────────────────────────────────────── -->
+<header class="page-header">
+  <button class="btn-back" onclick="history.back()">← Kembali</button>
+  <div class="page-title">{{ ctrl.icon }} {{ ctrl.name }}</div>
+  <div class="mqtt-badge">
+    <div class="mqtt-dot" id="dot"></div>
+    <span id="mqttStatus">Menghubungkan...</span>
+  </div>
+</header>
+
+<!-- ── D-Pad ─────────────────────────────────────────────────────────────── -->
+<div class="page-content">
+  <div class="dpad">
+    <!--  Baris 1  -->
+    <div class="dpad-btn ghost"></div>
+    <button class="dpad-btn" id="btnF" aria-label="Maju">
+      <span class="d-icon">↑</span>
+      <span class="d-label">MAJU</span>
+    </button>
+    <div class="dpad-btn ghost"></div>
+
+    <!--  Baris 2  -->
+    <button class="dpad-btn" id="btnL" aria-label="Kiri">
+      <span class="d-icon">←</span>
+      <span class="d-label">KIRI</span>
+    </button>
+    <button class="dpad-btn dpad-stop" id="btnS" aria-label="Stop">
+      <span class="d-icon">■</span>
+      <span class="d-label">STOP</span>
+    </button>
+    <button class="dpad-btn" id="btnR" aria-label="Kanan">
+      <span class="d-icon">→</span>
+      <span class="d-label">KANAN</span>
+    </button>
+
+    <!--  Baris 3  -->
+    <div class="dpad-btn ghost"></div>
+    <button class="dpad-btn" id="btnB" aria-label="Mundur">
+      <span class="d-icon">↓</span>
+      <span class="d-label">MUNDUR</span>
+    </button>
+    <div class="dpad-btn ghost"></div>
+  </div>
+</div>
+
+<script>
+// ── Konfigurasi ─────────────────────────────────────────────────────────────
+const BROKER = "{{ mqtt_broker }}";
+const TOPIC  = "{{ mqtt_topic }}";
+
+// ── MQTT ────────────────────────────────────────────────────────────────────
+const dot    = document.getElementById('dot');
+const mqStat = document.getElementById('mqttStatus');
+const client = mqtt.connect(BROKER);
+
+client.on('connect', () => {
+  dot.className = 'mqtt-dot connected';
+  mqStat.textContent = 'Terhubung';
+});
+client.on('offline', () => {
+  dot.className = 'mqtt-dot error';
+  mqStat.textContent = 'Terputus';
+});
+client.on('error', () => {
+  dot.className = 'mqtt-dot error';
+  mqStat.textContent = 'Error';
+});
+
+function pub(msg) {
+  if (client.connected) client.publish(TOPIC, msg);
+}
+
+// ── Binding Tombol (press & hold → send S on release) ───────────────────────
+function bindHold(id, cmd) {
+  const btn = document.getElementById(id);
+
+  function press() { btn.classList.add('pressed'); pub(cmd); }
+  function release() { btn.classList.remove('pressed'); pub('S'); }
+
+  btn.addEventListener('mousedown',  press);
+  btn.addEventListener('mouseup',    release);
+  btn.addEventListener('mouseleave', release);
+  btn.addEventListener('touchstart', (e) => { e.preventDefault(); press(); },   { passive: false });
+  btn.addEventListener('touchend',   (e) => { e.preventDefault(); release(); }, { passive: false });
+  btn.addEventListener('touchcancel',(e) => { e.preventDefault(); release(); }, { passive: false });
+}
+
+// Tombol arah — tekan tahan
+bindHold('btnF', 'F');
+bindHold('btnB', 'B');
+bindHold('btnL', 'L');
+bindHold('btnR', 'R');
+
+// Tombol STOP — klik langsung kirim S
+const btnS = document.getElementById('btnS');
+function sendStop() { btnS.classList.add('pressed'); pub('S'); setTimeout(() => btnS.classList.remove('pressed'), 150); }
+btnS.addEventListener('click', sendStop);
+btnS.addEventListener('touchstart', (e) => { e.preventDefault(); sendStop(); }, { passive: false });
+
+// Kirim STOP saat tab/window tidak aktif untuk keamanan
+document.addEventListener('visibilitychange', () => { if (document.hidden) pub('S'); });
+window.addEventListener('blur', () => pub('S'));
+</script>
+{% endblock %}

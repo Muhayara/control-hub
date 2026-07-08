@@ -1,0 +1,228 @@
+{% extends 'base.html' %}
+{% block title %}RC Car — Pilih Kontroler{% endblock %}
+
+{% block body %}
+<div class="index-wrap">
+
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <header class="site-header">
+    <!-- SVG UCIC di sebelah kiri -->
+    <div class="ucic-wrap">
+      <div class="logo-box" id="logoBox">
+        <div class="sweep2"></div>
+        <div class="glow-outer"></div>
+        <div class="glow-inner"></div>
+        <div class="corner tl"></div>
+        <div class="corner tr"></div>
+        <div class="corner br"></div>
+        <div class="corner bl"></div>
+      
+        <!-- SVG UCIC masuk di sini sebagai pengganti <div class="logo">B</div> -->
+        <svg class="ucic-svg" viewBox="0 0 268 92" xmlns="http://www.w3.org/2000/svg" style="z-index:5;position:relative">
+          <g stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="3">
+            <path class="line" d="M 8,10 L 8,65 Q 8,82 34,82 Q 60,82 60,65 L 60,10"/>
+            <path class="line" d="M 130,22 C 118,8 96,8 86,20 C 76,32 76,58 86,70 C 96,82 118,82 130,68"/>
+            <path class="line" d="M 150,10 L 180,10"/>
+            <path class="line" d="M 165,10 L 165,82"/>
+            <path class="line" d="M 150,82 L 180,82"/>
+            <path class="line" d="M 256,22 C 244,8 222,8 212,20 C 202,32 202,58 212,70 C 222,82 244,82 256,68"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <div class="info-wrap">
+      <div class="logo-box" id="infoBox">
+        <div class="sweep2"></div>
+        <div class="glow-outer"></div>
+        <div class="glow-inner"></div>
+        <div class="corner tl"></div>
+        <div class="corner tr"></div>
+        <div class="corner br"></div>
+        <div class="corner bl"></div>
+      
+        <div class="info-content">
+          <div class="info-name">UCIC Agentic AI</div>
+          <div class="info-divider"></div>
+          <div class="info-city">Cirebon</div>
+          <div class="info-prodi">Teknik Informatika</div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- center header  -->
+    <div class="header-content">
+      <div class="header-eyebrow">SISTEM KONTROL</div>
+      <h1 class="site-title">RC&nbsp;CAR</h1>
+      <p class="site-sub">Pilih metode kontrol untuk mengoperasikan mobil RC</p>
+      <div class="header-rule"></div>
+
+      <!-- Animasi berlian -->
+      <div class="header-diamonds">
+        <div class="hdiamond"></div>
+        <div class="hdiamond"></div>
+        <div class="hdiamond"></div>
+        <div class="hdiamond"></div>
+        <div class="hdiamond"></div>
+        <div class="hdiamond"></div>
+        <div class="hdiamond"></div>
+        <div class="hdiamond"></div>
+        <div class="hdiamond"></div>
+        <div class="hdiamond"></div>
+        <div class="hdiamond"></div>
+      </div>
+    </div>
+  </header>
+
+
+
+  <!-- ── Grid kontroler ────────────────────────────────────────────────── -->
+  <main class="ctrl-grid">
+    {% for ctrl in controllers %}
+    <a href="/controller/{{ ctrl.id }}" class="ctrl-card" style="--accent: {{ ctrl.color }}">
+      <!-- Racing stripe kiri -->
+      <div class="card-stripe"></div>
+
+      <div class="card-body">
+        <div class="card-icon">{{ ctrl.icon }}</div>
+        <div class="card-name">{{ ctrl.name }}</div>
+        <p class="card-desc">{{ ctrl.desc }}</p>
+
+      </div>
+
+      <!-- Panah navigasi -->
+      <div class="card-arrow">→</div>
+    </a>
+    {% endfor %}
+  </main>
+
+  <footer class="site-footer">
+    RC Car Controller &nbsp;·&nbsp; MQTT over WebSocket &nbsp;·&nbsp;
+    <span id="muhayara-text">Muhayara</span> &nbsp;·&nbsp; 
+    <span id="broker-display"></span>
+  </footer>
+</div>
+
+<script>
+  // Tampilkan broker dari URL saat ini (tidak hardcode)
+  const broker = "{{ mqtt_broker }}".replace('wss://', '').split(':')[0];
+  document.getElementById('broker-display').textContent = 'Broker: ' + broker;
+</script>
+
+<!--  
+<script type="module">
+  import { animate, svg, stagger } from 'https://esm.sh/animejs';
+ 
+  animate(svg.createDrawable('.line'), {
+    draw: ['0 0', '0 1', '1 1'],
+    ease: 'inOutQuad',
+    duration: 2000,
+    delay: stagger(100),
+    loopDelay: 5000,
+    endDelay: 2500,
+    loop: true,
+  });
+</script>
+-->
+
+<script type="module">
+  import { animate, svg, stagger } from 'https://esm.sh/animejs';
+ 
+  animate(svg.createDrawable('.line'), {
+    draw: [
+      { to: '0 1', duration: 1000, ease: 'inOutQuad' }, // fase 1: huruf muncul
+      { to: '0 1', duration: 5000 },                     // fase 2: diam & terbaca 3 detik
+      { to: '1 1', duration: 1000, ease: 'inOutQuad' }, // fase 3: huruf terhapus
+    ],
+    delay: stagger(100),
+    loopDelay: 1000,
+    loop: true,
+  });
+</script>
+
+
+
+<script type="module">
+  import { animate, scrambleText } from 'https://esm.sh/animejs';
+ 
+  animate('#muhayara-text', {
+    innerHTML: scrambleText({
+      text: 'Muhayara',
+      chars: 'Muhayaraabcdefghijklmnopqrstuvwxyz0123456789',
+      speed: 0.9,
+      from: 'random',
+    }),
+    loop: true,
+    loopDelay: 2000,
+    duration: 1000,
+  });
+</script>
+
+<!-- Anime.js stagger boxShadow untuk berlian header -->
+<script type="module">
+  import { animate, stagger } from 'https://esm.sh/animejs';
+ 
+  animate('.hdiamond', {
+    boxShadow: [
+      { to: stagger([1, .25], {
+          modifier: v => `0 0 ${v * 30}px ${v * 14}px currentColor`,
+          from: 'center'
+        })
+      },
+      { to: 0 },
+    ],
+    delay: stagger(100, { from: 'center' }),
+    loop: true,
+  });
+</script>
+
+
+<script>  
+  const box       = document.getElementById('logoBox');
+  
+  document.addEventListener('mousemove', e => {
+    const rect = box.getBoundingClientRect();
+    const dx   = e.clientX - (rect.left + rect.width  / 2);
+    const dy   = e.clientY - (rect.top  + rect.height / 2);
+  
+
+    // 3D tilt
+    // box.style.transform = `
+      // perspective(800px)
+      // rotateY(${dx / 25}deg)
+      // rotateX(${-dy / 25}deg)
+      // scale(1.05)
+    // `;
+
+    // Inner glow ikut mouse (hanya kalau di dalam box)
+    const inside =
+      e.clientX >= rect.left && e.clientX <= rect.right &&
+      e.clientY >= rect.top  && e.clientY <= rect.bottom;
+  
+    if (inside) {
+      box.style.setProperty('--glow-x', ((e.clientX - rect.left) / rect.width  * 100).toFixed(1) + '%');
+      box.style.setProperty('--glow-y', ((e.clientY - rect.top)  / rect.height * 100).toFixed(1) + '%');
+    }
+  
+  });
+  
+  document.addEventListener('mouseleave', () => {
+    // box.style.transform = '';
+    box.style.setProperty('--glow-x', '50%');
+    box.style.setProperty('--glow-y', '50%');
+  });
+  
+  // Ripple saat klik
+  box.addEventListener('click', e => {
+    const rect   = box.getBoundingClientRect();
+    const ripple = document.createElement('div');
+    ripple.className  = 'ripple';
+    ripple.style.left = (e.clientX - rect.left) + 'px';
+    ripple.style.top  = (e.clientY - rect.top)  + 'px';
+    box.appendChild(ripple);
+    ripple.addEventListener('animationend', () => ripple.remove());
+  });
+</script>
+
+{% endblock %}
