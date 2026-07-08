@@ -20,8 +20,6 @@ rc-car-controller/
 │       ├── button.html             ← web_kontrolv2.html  → Kontrol tombol
 │       ├── voice.html              ← kontrol.py          → Kontrol suara
 │       ├── voice_copy.html         ← kontrol-copy.py     → Suara Plus (durasi otomatis)
-│       ├── voice_ai.html           ← kontrol-ai.py       → Suara + Gemini AI
-│       ├── voice_ai_copy.html      ← kontrol-ai-copy.py  → Suara AI Plus (belok dibatasi)
 │       └── finger.html             ← kontrol-jari.py     → Kontrol jari (MediaPipe)
 │
 └── static/
@@ -71,8 +69,6 @@ Buka di browser: `http://localhost:5000`
 | `web_kontrolv2.html` | `/controller/button` | Tombol tekan-tahan | MQTT |
 | `kontrol.py` | `/controller/voice` | Suara + regex | Mikrofon, Chrome |
 | `kontrol-copy.py` | `/controller/voice_copy` | Suara + durasi otomatis belok | Mikrofon, Chrome |
-| `kontrol-ai.py` | `/controller/voice_ai` | Suara + Gemini AI | Mikrofon, Gemini API |
-| `kontrol-ai-copy.py` | `/controller/voice_ai_copy` | Suara AI + belok dibatasi 0.6s | Mikrofon, Gemini API |
 | `kontrol-jari.py` | `/controller/finger` | Tracking jari MediaPipe | Kamera, Chrome |
 
 ---
