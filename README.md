@@ -48,8 +48,8 @@ cp .env.example .env
 Edit `.env`:
 ```
 GEMINI_API_KEY=your_api_key_here   # Diperlukan untuk kontroler Suara AI
-MQTT_TOPIC=muhayara/rc/rc-car-controller/car
-MQTT_BROKER_WSS=wss://broker.hivemq.com:8884/mqtt
+MQTT_TOPIC=
+MQTT_BROKER_WSS=
 PORT=5000
 DEBUG=false
 ```
@@ -86,15 +86,7 @@ Buka di browser: `http://localhost:5000`
 
 ---
 
-## Deploy ke Server Publik
 
-```bash
-# Install gunicorn
-pip install gunicorn
-
-# Jalankan
-gunicorn -w 2 -b 0.0.0.0:5000 app:app
-```
 
 > **Penting:** Kamera dan mikrofon browser hanya berfungsi di HTTPS.
 > Gunakan nginx + certbot, atau layanan seperti Railway / Render yang menyediakan HTTPS otomatis.
