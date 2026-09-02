@@ -9,7 +9,7 @@ import dotenv
 dotenv.load_dotenv()
 
 broker = "broker.hivemq.com"
-topik = "muhayara/rc/whatever-you-want"
+topik = "muhayara_example/rc/whatever-you-want"
 
 klien = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 klien.connect(broker, 1883, 60)
