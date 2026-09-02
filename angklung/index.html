@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Angklung Robot Controller</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Exo+2:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="logo-wrap">
+    <div class="logo-badge">CIC</div>
+    <div class="logo-text">
+      <h1>ANGKLUNG ROBOT</h1>
+      <p>Control Interface v2.1</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="conn-indicator">
+      <div class="conn-dot off" id="connDot"></div>
+      <span id="connLabel">MENGHUBUNGKAN...</span>
+    </div>
+    <div class="header-clock" id="clock">00:00:00</div>
+  </div>
+</header>
+
+<div class="main">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="section-label">Pilih Lagu / Song</div>
+      <div id="songList">
+        <!-- Songs injected by JS -->
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Pilih Nada / Note</div>
+      <div class="note-grid" id="noteGrid">
+        <!-- Notes injected by JS -->
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <div class="content">
+
+    <!-- VISUALIZER -->
+    <div class="visualizer-wrap">
+      <div class="viz-header">
+        <div class="viz-title">RELAY ACTIVITY — RS-545SH MOTORS</div>
+        <div style="font-size:10px;color:var(--text-muted);letter-spacing:1.5px">8-CH MODULE</div>
+      </div>
+      <div class="viz-bars" id="vizBars"></div>
+    </div>
+
+    <!-- TRANSPORT -->
+    <div class="transport">
+      <div class="now-playing">
+        <div class="np-label">Now Playing</div>
+        <div class="np-title" id="npTitle">— SELECT A SONG —</div>
+        <div class="np-sub" id="npSub">ESP32 · MQTT Protocol</div>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-times">
+          <span id="timeCur">0:00</span>
+          <span id="timeTotal">0:00</span>
+        </div>
+      </div>
+      <div class="ctrl-btns">
+        <button class="btn-ctrl" title="Previous" onclick="prevSong()">⏮</button>
+        <button class="btn-play" id="playBtn" onclick="togglePlay()">▶</button>
+        <button class="btn-stop" onclick="stopAll()" title="Stop">■</button>
+        <button class="btn-ctrl" title="Next" onclick="nextSong()">⏭</button>
+        <button class="btn-ctrl" id="micBtn" title="Rekam suara: sebut nama lagu atau 'mulai'/'berhenti'" onclick="toggleVoice()">🎤</button>
+      </div>
+    </div>
+
+    <!-- VOICE STATUS -->
+    <div class="ctrl-card" id="voiceCard" style="display:none">
+      <div class="ctrl-card-label">🎤 Perintah Suara (Voice Command)</div>
+      <div style="font-size:12px;color:var(--text-dim);line-height:1.6">
+        Status: <span id="voiceStatus" style="color:var(--cic-blue-light);font-weight:600">Nonaktif</span><br>
+        Terakhir didengar: <span id="voiceHeard" style="color:var(--text-primary)">—</span><br>
+        <span style="font-size:10px;color:var(--text-muted)">Contoh ucapan: "balonku", "gundul pacul", "rasa sayange", "manuk dadali", "jali jali", "ulang tahun", "mulai", "berhenti"</span>
+      </div>
+    </div>
+
+    <!-- AUDIO TEST -->
+    <div class="ctrl-card" id="audioTestCard">
+      <div class="ctrl-card-label">🔊 Test Audio (Simulasi Suara Angklung — tanpa hardware)</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <label style="font-size:12px;color:var(--text-dim);display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="audioTestToggle" checked style="width:16px;height:16px;cursor:pointer">
+          Putar nada lewat speaker saat tombol/lagu ditekan (untuk tes sebelum ke ESP32)
+        </label>
+      </div>
+    </div>
+
+    <!-- RELAY PANEL -->
+    <div class="relay-panel">
+      <div class="relay-header">
+        <div class="relay-title">8-CHANNEL RELAY · PISTON MOTOR CONTROL</div>
+        <div style="font-size:10px;color:var(--text-muted)">DC MOTOR RS-545SH</div>
+      </div>
+      <div class="relay-grid" id="relayGrid"></div>
+    </div>
+
+    <!-- CONTROLS ROW -->
+    <div class="controls-row">
+      <div class="ctrl-card">
+        <div class="ctrl-card-label">Motor Speed (PWM)</div>
+        <div class="range-wrap">
+          <div class="range-val" id="speedVal">75%</div>
+          <input type="range" min="0" max="100" value="75" id="speedSlider"
+            oninput="document.getElementById('speedVal').textContent=this.value+'%'">
+        </div>
+      </div>
+      <div class="ctrl-card">
+        <div class="ctrl-card-label">Tempo (BPM)</div>
+        <div class="range-wrap">
+          <div class="range-val" id="tempoVal">120</div>
+          <input type="range" min="40" max="200" value="120" id="tempoSlider"
+            oninput="document.getElementById('tempoVal').textContent=this.value">
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  <span>UNIVERSITAS CATUR INSAN CENDIKIA</span>
+  <span style="color:var(--text-muted)">·</span>
+  <span>ANGKLUNG ROBOT CONTROLLER</span>
+  <span style="color:var(--text-muted)">·</span>
+  <span style="color:var(--text-muted)">muhayara/angklung/ch/0~7 · broker.hivemq.com · wss:8884</span>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
