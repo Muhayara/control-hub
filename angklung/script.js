@@ -15,7 +15,7 @@ const noteFreq = [261,294,330,349,392,440,494,523];
 // =============================================
 // KONFIGURASI — samakan dengan main.cpp
 // =============================================
-const BASE_TOPIC = 'muhayara_example/angklung/ch'
+const BASE_TOPIC = 'muhayara/example'
 const BROKER_URL = 'wss://broker.hivemq.com:8884/mqtt'
 // =============================================
 

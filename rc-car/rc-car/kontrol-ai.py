@@ -11,7 +11,7 @@ import pygame
 import io
 
 broker = "broker.hivemq.com"
-topik = "muhayara_example/rc/whatever-you-want"
+topik = "muhayara/rc/whatever-you-want"
 
 klien = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 klien.connect(broker, 1883, 60)
